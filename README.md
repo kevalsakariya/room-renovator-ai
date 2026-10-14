@@ -40,34 +40,49 @@ Perfect for real estate visualization, interior decorators, home remodeling insp
 
 ## ⚙️ Setup Instructions
 
-### 1. Clone the Repo
+### 1. Start the Colab image-generation GPU
+
+The frontend and backend run on your PC. The backend sends image-generation requests to an authenticated temporary tunnel connected to a model running on Colab; no Hugging Face hosted inference API or `HF_TOKEN` is used.
+
+1. Open [`colab_room_redesign.ipynb`](./colab_room_redesign.ipynb) in Google Colab.
+2. Select **Runtime → Change runtime type → T4 GPU** (or another available GPU).
+3. Create a long random secret token. For example, run `py -c "import secrets; print(secrets.token_urlsafe(32))"` in PowerShell. Keep it private.
+4. Before starting the Colab notebook, add the token to `backend/.env`:
+
+   ```text
+   COLAB_INFERENCE_TOKEN=paste_your_random_token_here
+   ```
+
+5. Run the notebook cells in order. When prompted, paste the same token; the input is hidden. The last cell prints a temporary `COLAB_INFERENCE_URL`.
+6. Add that URL to `backend/.env`:
+
+   ```text
+   COLAB_INFERENCE_URL=https://your-temporary-address.trycloudflare.com/api/try-on
+   ```
+
+Keep the Colab notebook and runtime running while using the app. A new runtime creates a new tunnel URL, so update `COLAB_INFERENCE_URL` and restart the backend if Colab disconnects. Free GPU access and runtime duration are limited and not guaranteed. The starter model is general-purpose and may change room details; review its license and Colab's terms before use. Room images are sent from your local backend to the Colab runtime through the authenticated HTTPS tunnel.
+
+### 2. Clone the Repo
 
 ```bash
 git clone https://github.com/narender-rk10/Gen-AI-Home-Interior-Designer.git
 cd Gen-AI-Home-Interior-Designer
 ```
 
-### 2. Setup Backend
+### 3. Setup Backend
 
 ```bash
 cd backend
 poetry install
-poetry shell
 ```
 
-Create a `.env` file in the backend folder and add your Gemini API key:
-
-```
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-Run the server:
+Make sure `backend/.env` contains the `COLAB_INFERENCE_TOKEN` and `COLAB_INFERENCE_URL` values from the Colab instructions above. Start the local server from the `backend` folder:
 
 ```bash
-uvicorn main:app --reload
+poetry run uvicorn main:app --reload
 ```
 
-### 3. Setup Frontend
+### 4. Setup Frontend
 
 ```bash
 cd frontend

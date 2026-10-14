@@ -14,3 +14,12 @@ app.add_middleware(
 )
 
 app.include_router(tryon.router, prefix="/api")
+
+
+@app.get("/")
+def root():
+    return {
+        "status": "online",
+        "service": "Gen AI Home Interior Designer API",
+        "docs": "/docs",
+    }

@@ -24,12 +24,30 @@ const MarkdownCard = ({ text, isDarkMode }) => {
       <ReactMarkdown
         children={text}
         components={{
-          h1: ({ node, ...props }) => <h1 style={{ fontSize: 18, marginBottom: 10 }} {...props} />,
-          h2: ({ node, ...props }) => <h2 style={{ fontSize: 16, marginBottom: 8 }} {...props} />,
-          p: ({ node, ...props }) => <p style={{ marginBottom: 8 }} {...props} />,
-          ul: ({ node, ...props }) => <ul style={{ paddingLeft: "1.2rem", marginBottom: 10 }} {...props} />,
-          li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
-          strong: ({ node, ...props }) => <strong style={{ fontWeight: 600 }} {...props} />,
+          h1: ({ node, ...props }) => {
+            void node;
+            return <h1 style={{ fontSize: 18, marginBottom: 10 }} {...props} />;
+          },
+          h2: ({ node, ...props }) => {
+            void node;
+            return <h2 style={{ fontSize: 16, marginBottom: 8 }} {...props} />;
+          },
+          p: ({ node, ...props }) => {
+            void node;
+            return <p style={{ marginBottom: 8 }} {...props} />;
+          },
+          ul: ({ node, ...props }) => {
+            void node;
+            return <ul style={{ paddingLeft: "1.2rem", marginBottom: 10 }} {...props} />;
+          },
+          li: ({ node, ...props }) => {
+            void node;
+            return <li style={{ marginBottom: 4 }} {...props} />;
+          },
+          strong: ({ node, ...props }) => {
+            void node;
+            return <strong style={{ fontWeight: 600 }} {...props} />;
+          },
         }}
       />
     </div>
