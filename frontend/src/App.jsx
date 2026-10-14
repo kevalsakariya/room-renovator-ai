@@ -151,7 +151,7 @@ function App() {
           }}
         >
           <Title level={3} style={{ margin: 0, color: textColor, fontSize: "1.5rem", flex: 1 }}>
-            🏡 Virtual Home Designer
+            🏡 AI Space Design Studio
           </Title>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
             {backendStatus && (
@@ -195,8 +195,21 @@ function App() {
         <Content style={{ padding: "2rem 1rem" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
             <Title level={2} style={{ color: textColor, textAlign: "center", marginBottom: "2rem" }}>
-              AI Interior / Exterior Makeover
+              Envision Your Space, Reimagined
             </Title>
+            <Text
+              style={{
+                display: "block",
+                color: textColor,
+                textAlign: "center",
+                maxWidth: 720,
+                margin: "-1rem auto 2rem",
+                opacity: 0.8,
+              }}
+            >
+              Transform a photo into a personalized interior or exterior concept, guided by your
+              preferred style, colors, and design details.
+            </Text>
 
             {/* FORM */}
             <form onSubmit={handleSubmit}>

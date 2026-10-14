@@ -1,7 +1,8 @@
-# 🏡 Gen AI Home Interior Designer
+# 🏡 AI Home & Space Design Studio
 
-A powerful Gen AI-powered home redesign tool that transforms real-world room or outdoor images into beautifully reimagined interiors or exteriors. Leveraging Google Gemini (Multimodal Generative AI) and FastAPI, this virtual designer allows users to upload a space photo, select design preferences (room type, style, colors), and instantly receive a photorealistic redesign with cost estimation and improvement suggestions.
-Perfect for real estate visualization, interior decorators, home remodeling inspiration, and furniture retailers.
+Reimagine a room or outdoor space with an AI-powered design experience. Upload a photo, choose the space type, aesthetic, and color palette, then add your own styling direction. The app transforms those preferences into a visual redesign and a tailored design brief with recommendations and estimated cost and timeline—helping homeowners and design professionals explore concepts before committing to a renovation.
+
+Powered by multimodal AI and a dedicated image-generation workflow, the experience combines visual transformation with practical design guidance for interior and exterior spaces.
 
 ---
 
