@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🏡 AI Home & Space Design Studio
 
 Reimagine a room or outdoor space with an AI-powered design experience. Upload a photo, choose the space type, aesthetic, and color palette, then add your own styling direction. The app transforms those preferences into a visual redesign and a tailored design brief with recommendations and estimated cost and timeline—helping homeowners and design professionals explore concepts before committing to a renovation.
@@ -148,8 +147,6 @@ This project showcases how **multimodal AI** can revolutionize interior design �
 
 ---
 
-## 🙋‍♂️ Author
-=======
-# room-renovator-ai
-AI-powered room and outdoor space redesign: upload a photo, choose a style and color palette, and generate a visual makeover with personalized design recommendations.
->>>>>>> 463351d778beb5dc34211c7aef10a66a5985e203
+## 🙋‍♂️ Project Summary
+
+**room-renovator-ai**: AI-powered room and outdoor space redesign — upload a photo, choose a style and color palette, and generate a visual makeover with personalized design recommendations and real-time custom preference synthesis.

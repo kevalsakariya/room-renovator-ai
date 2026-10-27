@@ -112,6 +112,12 @@ function App() {
         resultImage: response.data.image,
         text: response.data.text,
         mode: response.data.mode,
+        designType,
+        roomType,
+        style,
+        backgroundColor,
+        foregroundColor,
+        instructions: instructions.trim(),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
@@ -361,46 +367,139 @@ function App() {
             {history.length > 0 && (
               <div style={{ marginTop: 80 }}>
                 <Divider />
-                <Title level={3} style={{ color: textColor, marginBottom: 32 }}>
-                  Previous Makeovers
-                </Title>
-                <Row gutter={[24, 24]}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                  <Title level={3} style={{ color: textColor, margin: 0 }}>
+                    Previous Makeovers ({history.length})
+                  </Title>
+                  <Button
+                    size="small"
+                    danger
+                    onClick={() => setHistory([])}
+                    style={{ borderRadius: 6 }}
+                  >
+                    Clear History
+                  </Button>
+                </div>
+                <Row gutter={[20, 20]}>
                   {history.map((item) => (
                     <Col xs={24} sm={12} md={8} key={item.id}>
                       <div
+                        onClick={() => {
+                          setResult(item);
+                          resultRef.current?.scrollIntoView({ behavior: "smooth" });
+                        }}
                         style={{
                           background: isDarkMode ? "#1f1f1f" : "#ffffff",
-                          padding: 16,
-                          borderRadius: 12,
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                          border: isDarkMode ? "1px solid #2d2d2d" : "1px solid #e5e7eb",
+                          padding: 12,
+                          borderRadius: 14,
+                          boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
                           display: "flex",
                           flexDirection: "column",
-                          height: "100%",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "translateY(-3px)";
+                          e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "none";
+                          e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)";
                         }}
                       >
-                        <img
-                          src={item.resultImage}
-                          alt="Previous Makeover"
-                          style={{
-                            width: "100%",
-                            borderRadius: 10,
-                            marginBottom: 12,
-                            maxHeight: "220px",
-                            objectFit: "cover",
-                          }}
-                        />
-                        <div style={{ flex: 1, marginBottom: 12 }}>
-                          <MarkdownCard text={item.text} isDarkMode={isDarkMode} />
+                        <div style={{ position: "relative", overflow: "hidden", borderRadius: 10 }}>
+                          <img
+                            src={item.resultImage}
+                            alt="Previous Makeover"
+                            style={{
+                              width: "100%",
+                              height: "200px",
+                              objectFit: "cover",
+                              display: "block",
+                              borderRadius: 10,
+                            }}
+                          />
+                          {item.instructions && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: "rgba(15, 23, 42, 0.88)",
+                                backdropFilter: "blur(4px)",
+                                padding: "6px 10px",
+                                color: "#f8fafc",
+                                fontSize: 11,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              ✍️ {item.instructions}
+                            </div>
+                          )}
                         </div>
-                        <Text
+
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {item.roomType && (
+                              <Tag color="cyan" style={{ margin: 0, textTransform: "capitalize", fontSize: 11 }}>
+                                {item.roomType}
+                              </Tag>
+                            )}
+                            {item.style && (
+                              <Tag color="purple" style={{ margin: 0, textTransform: "capitalize", fontSize: 11 }}>
+                                {item.style}
+                              </Tag>
+                            )}
+                          </div>
+                          {item.backgroundColor && item.foregroundColor && (
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <span
+                                title={`Backdrop: ${item.backgroundColor}`}
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: "50%",
+                                  backgroundColor: item.backgroundColor,
+                                  border: "1px solid rgba(255,255,255,0.4)",
+                                  display: "inline-block",
+                                }}
+                              />
+                              <span
+                                title={`Accent: ${item.foregroundColor}`}
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: "50%",
+                                  backgroundColor: item.foregroundColor,
+                                  border: "1px solid rgba(255,255,255,0.4)",
+                                  display: "inline-block",
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div
                           style={{
-                            color: isDarkMode ? "#a1a1aa" : "#666",
-                            fontSize: 12,
-                            marginTop: "auto",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginTop: 10,
+                            paddingTop: 8,
+                            borderTop: `1px solid ${isDarkMode ? "#27272a" : "#f1f5f9"}`,
                           }}
                         >
-                          🕒 {item.timestamp}
-                        </Text>
+                          <Text style={{ color: isDarkMode ? "#a1a1aa" : "#64748b", fontSize: 11 }}>
+                            🕒 {item.timestamp}
+                          </Text>
+                          <Text style={{ color: "#0ea5e9", fontSize: 12, fontWeight: 500 }}>
+                            View in Studio →
+                          </Text>
+                        </div>
                       </div>
                     </Col>
                   ))}

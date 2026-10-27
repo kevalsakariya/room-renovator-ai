@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageDraw, ImageEnhance
+from utils.preferences_parser import parse_user_preferences
 
 load_dotenv()
 
@@ -46,7 +47,7 @@ def _is_colab_configured() -> bool:
     return bool(colab_url and "your-temporary-address" not in colab_url)
 
 
-def _check_colab_health(timeout: float = 2.5) -> tuple[bool, str]:
+def _check_colab_health(timeout: float = 6.0) -> tuple[bool, str]:
     """Actively ping Colab /health endpoint to verify if the tunnel is alive and responding."""
     load_dotenv(override=True)
     colab_url = os.getenv("COLAB_INFERENCE_URL", "").strip().strip("'\"")
@@ -74,9 +75,9 @@ def _check_colab_health(timeout: float = 2.5) -> tuple[bool, str]:
 def _is_colab_live() -> tuple[bool, str]:
     global _last_colab_check_time, _last_colab_check_result
     now = time.time()
-    if now - _last_colab_check_time < 6.0:
+    if now - _last_colab_check_time < 8.0:
         return _last_colab_check_result
-    _last_colab_check_result = _check_colab_health(timeout=2.5)
+    _last_colab_check_result = _check_colab_health(timeout=6.0)
     _last_colab_check_time = now
     return _last_colab_check_result
 
@@ -313,6 +314,7 @@ def _run_preview_mode(
     foreground_color: str,
     style: str,
     instructions: str = "",
+    overlay_label: str = "",
 ) -> bytes:
     """Apply a realistic room color palette preview using luminance-zone duotone colorization.
 
@@ -322,6 +324,7 @@ def _run_preview_mode(
          Map dark zones (furniture, floors, shadows) → user's accent/foreground color.
       3. Blend colorized layer at high strength (78%) with desaturated original.
       4. Apply style-specific grading + user instruction keyword effects.
+      5. Overlay custom architectural specification badges if requested by user.
     """
     with Image.open(io.BytesIO(image_bytes)) as src:
         img = src.convert("RGB")
@@ -381,6 +384,12 @@ def _run_preview_mode(
     instr = instructions.strip().lower() if instructions else ""
     if instr:
         print(f"   📝 Applying instruction keywords: '{instr[:80]}'")
+
+        # Study / workstation focus keywords
+        if any(k in instr for k in ("study", "desk", "table", "chair", "bookshelf", "office", "workstation")):
+            result = ImageEnhance.Sharpness(result).enhance(1.25)
+            result = ImageEnhance.Brightness(result).enhance(1.04)
+            result = ImageEnhance.Contrast(result).enhance(1.10)
 
         # Brightness keywords
         if any(k in instr for k in ("bright", "airy", "light room", "sunlit", "day light", "daylight")):
@@ -474,9 +483,48 @@ def _run_preview_mode(
     watermark_draw.text((bx + 10, by + 7), "AI MAKEOVER PREVIEW", fill=(248, 250, 252, 240))
     result = Image.alpha_composite(result.convert("RGBA"), watermark).convert("RGB")
 
+    # ── Step 9: Custom Specification / Architectural Plan Overlay ──
+    if overlay_label:
+        pad_x = 12
+        lbl_h = 30
+        lbl_y = 12
+        # Text width estimate
+        lbl_w = min(w - 24, max(260, len(overlay_label) * 8 + pad_x * 2))
+        lbl_x = (w - lbl_w) // 2
+
+        plan_overlay = Image.new("RGBA", result.size, (0, 0, 0, 0))
+        plan_draw = ImageDraw.Draw(plan_overlay)
+        plan_draw.rounded_rectangle(
+            [lbl_x, lbl_y, lbl_x + lbl_w, lbl_y + lbl_h],
+            radius=6, fill=(15, 23, 42, 235), outline=(56, 189, 248, 240), width=1,
+        )
+        plan_draw.text((lbl_x + pad_x, lbl_y + 7), overlay_label[:52], fill=(240, 249, 255, 255))
+        result = Image.alpha_composite(result.convert("RGBA"), plan_overlay).convert("RGB")
+
     out_buffer = io.BytesIO()
     result.save(out_buffer, format="PNG")
     return out_buffer.getvalue()
+
+
+def _generate_ai_fallback_image(prompt: str) -> bytes | None:
+    """Generate a photorealistic generative image for the room makeover using fast AI cloud rendering."""
+    try:
+        import urllib.parse
+        encoded = urllib.parse.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=512&model=flux&nologo=true&seed=42"
+        headers = {
+            "User-Agent": "AI-Room-Makeover/1.0",
+            "Accept": "image/jpeg,image/png,image/*",
+        }
+        req = Request(url, headers=headers, method="GET")
+        with urlopen(req, timeout=28) as resp:
+            if resp.status == 200:
+                data = resp.read()
+                if len(data) > 5000:
+                    return data
+    except Exception as exc:
+        print(f"   ℹ️  Generative cloud fallback unavailable ({exc})")
+    return None
 
 
 def _request_colab(payload: dict[str, str | float | int]) -> dict[str, str]:
@@ -581,21 +629,27 @@ def _generate_design_report(
     foreground_color: str,
     instructions: str,
     mode_used: str,
+    pref_data: dict | None = None,
 ) -> str:
     """Generate a rich, structured architectural design report in Markdown format."""
     r_name = room_type.strip().capitalize() or "Room"
     d_name = design_type.strip().capitalize() or "Interior"
     s_name = style.strip().capitalize() or "Modern"
 
-    custom_section = ""
-    if instructions.strip():
-        custom_section = f"- **Client Specifications:** Implemented requested preference: *\"{instructions.strip()}\"*."
+    custom_plan_section = ""
+    client_spec_header = ""
+    if pref_data and pref_data.get("has_preferences"):
+        custom_plan_section = f"\n{pref_data.get('custom_report_markdown', '').strip()}\n\n---\n"
+        client_spec_header = f"\n**Client Specification:** *\"{instructions.strip()}\"*"
+    elif instructions.strip():
+        custom_plan_section = f"- **Client Specifications:** Implemented requested preference: *\"{instructions.strip()}\"*.\n\n---\n"
+        client_spec_header = f"\n**Client Specification:** *\"{instructions.strip()}\"*"
 
     preview_notice = ""
     if "Preview" in mode_used:
         preview_notice = (
-            "\n\n> 💡 **GPU Status Note:** Displaying Smart Makeover Preview. "
-            "To activate full Stable Diffusion generative rendering, start the Google Colab GPU notebook "
+            "\n\n> 💡 **Engine Note:** Displaying Smart Architectural Preview. "
+            "To activate full 3D Stable Diffusion generative rendering on GPU, start the Google Colab GPU notebook "
             "(`colab_room_redesign.ipynb`) or install PyTorch locally."
         )
 
@@ -603,26 +657,25 @@ def _generate_design_report(
 
 **Space Type:** {r_name} ({d_name})  
 **Aesthetic Style:** {s_name}  
-**Inference Engine:** {mode_used}
+**Inference Engine:** {mode_used}{client_spec_header}
 
 ---
-
+{custom_plan_section}
 #### 🎨 Color & Material Palette
 - **Primary Backdrop (`{background_color}`):** Curated for primary wall surfacing, perimeter finishes, and large architectural planes to set a luminous {s_name.lower()} mood.
 - **Accent Harmony (`{foreground_color}`):** Focused on statement furniture, architectural frames, luminaire details, and bespoke textiles.
 - **Material Textures:** Warm organic woods, matte architectural ceramics, textured linen, and subtle brushed metals aligned with {s_name.lower()} principles.
 
 #### 🪑 Spatial Flow & Furnishing Strategy
-- **Zoning & Ergonomics:** Preserves structural walls while streamlining visual balance and functional walkways.
+- **Zoning & Ergonomics:** Preserves structural walls while streamlining visual balance, dedicated focus areas, and functional walkways.
 - **Focal Elements:** Integrated low-profile {s_name.lower()} centerpieces tailored to elevate standard {r_name.lower()} layouts.
-{custom_section}
 
 #### 💡 Lighting & Ambiance
 - **Layered Illumination:** Warm 2700K ambient ceiling channels combined with sculptural accent fixtures and directional task lamps.
 - **Natural Light Diffusion:** Minimalist sheer window treatments to maximize daytime illumination.
 
 #### 📊 Estimated Project Scope & Investment
-- **Estimated Budget Range:** $1,800 – $4,500 (flexible based on material selections).
+- **Base Renovation Budget:** $1,800 – $4,500 (wall surface prep, painting, and primary staging).
 - **Projected Turnaround:** 2 to 4 weeks for procurement, painting, and staging.{preview_notice}"""
 
 
@@ -719,20 +772,45 @@ async def try_on(
     bg_color_name = _hex_to_color_name(background_color)
     fg_color_name = _hex_to_color_name(foreground_color)
 
-    print(f"🎨 Color translation: {background_color} → '{bg_color_name}' | {foreground_color} → '{fg_color_name}'")
+    # Intelligently parse user styling preferences (e.g. study table for child)
+    pref_data = parse_user_preferences(
+        instructions=instructions,
+        room_type=room_type,
+        style=style,
+        background_color=background_color,
+        foreground_color=foreground_color,
+    )
 
-    extra = f" {instructions.strip()}" if instructions.strip() else ""
-    prompt = (
-        f"A photorealistic {design_type} redesign of a {room_type}, "
-        f"{style} style interior design. "
-        f"Primary wall and surface color: {bg_color_name}. "
-        f"Furniture and accent color: {fg_color_name}. "
-        f"High quality, well-lit, professional interior photography.{extra}"
-    ).strip()
+    optimal_strength = pref_data.get("optimal_strength", 0.65)
+    overlay_label = pref_data.get("preview_overlay_label", "")
+
+    if pref_data.get("has_preferences"):
+        prompt = (
+            f"A photorealistic {design_type} redesign of a {room_type}, "
+            f"{pref_data['prompt_tag']}, "
+            f"{style} style interior architecture. "
+            f"Primary wall and surface color: {bg_color_name}. "
+            f"Furniture and accent color: {fg_color_name}. "
+            f"High quality, well-lit, professional architectural interior photography, 8k uhd."
+        ).strip()
+    else:
+        prompt = (
+            f"A photorealistic {design_type} redesign of a {room_type}, "
+            f"{style} style interior design. "
+            f"Primary wall and surface color: {bg_color_name}. "
+            f"Furniture and accent color: {fg_color_name}. "
+            f"High quality, well-lit, professional interior photography."
+        ).strip()
+
+    print(f"🎨 Color translation: {background_color} → '{bg_color_name}' | {foreground_color} → '{fg_color_name}'")
+    print(f"📐 Synthesized Prompt ({optimal_strength} strength): '{prompt}'")
 
     load_dotenv(override=True)
     use_local_env = os.getenv("USE_LOCAL_MODEL", "auto").strip().lower()
     has_colab = _is_colab_configured()
+    colab_live = False
+    if has_colab:
+        colab_live, _ = _is_colab_live()
     has_local = _is_local_available()
 
     # Determine inference route
@@ -748,9 +826,9 @@ async def try_on(
     print("\n" + "=" * 55)
     print("🚀 INCOMING MAKEOVER REQUEST:")
     print(f"   Selected Engine Route: {route.upper()}")
-    print(f"   Configured Colab URL: {os.getenv('COLAB_INFERENCE_URL', '').strip()}")
+    print(f"   Configured Colab URL: {os.getenv('COLAB_INFERENCE_URL', '').strip()} (Live: {colab_live})")
+    print(f"   Applied Preference Category: {pref_data.get('category', 'none').upper()}")
     print("=" * 55)
-
 
     mode_used = ""
     generated_image_bytes = None
@@ -763,7 +841,7 @@ async def try_on(
                 {
                     "image_base64": base64.b64encode(place_bytes).decode("ascii"),
                     "prompt": prompt,
-                    "strength": 0.65,
+                    "strength": optimal_strength,
                     "steps": 4,
                 },
             )
@@ -773,15 +851,24 @@ async def try_on(
             )
             with Image.open(io.BytesIO(generated_image_bytes)) as gen_img:
                 print(f"🖼️ Verified AI image from Colab: {gen_img.size[0]}x{gen_img.size[1]} | Format: {gen_img.format} | Size: {len(generated_image_bytes) / 1024:.1f} KB")
-        except HTTPException:
-            raise
-
         except Exception as exc:
-            print(f"❌ Colab generation failed: {exc}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Colab generation failed: {str(exc)}",
-            ) from exc
+            print(f"⚠️ Colab generation failed or tunnel unreachable ({exc}), invoking generative cloud renderer...")
+            ai_bytes = await asyncio.to_thread(_generate_ai_fallback_image, prompt)
+            if ai_bytes:
+                mode_used = "AI Generative Model (Cloud Renderer)"
+                generated_image_bytes = ai_bytes
+                print(f"✨ Successfully generated AI room with '{pref_data.get('category')}' via generative renderer!")
+            else:
+                mode_used = "Instant Smart Preview (Colab Offline Fallback)"
+                generated_image_bytes = await asyncio.to_thread(
+                    _run_preview_mode,
+                    place_bytes,
+                    background_color,
+                    foreground_color,
+                    style,
+                    instructions,
+                    overlay_label,
+                )
 
     elif route == "local":
         mode_used = f"Local PC ({_local_pipe_device or 'PyTorch'})"
@@ -790,11 +877,42 @@ async def try_on(
                 _run_local_inference,
                 place_bytes,
                 prompt,
-                0.55,
+                optimal_strength,
             )
         except Exception as exc:
             print(f"Local inference failed ({exc}), falling back to preview mode.")
-            mode_used = "Instant Smart Preview (Local Fallback)"
+            ai_bytes = await asyncio.to_thread(_generate_ai_fallback_image, prompt)
+            if ai_bytes:
+                mode_used = "AI Generative Model (Cloud Renderer)"
+                generated_image_bytes = ai_bytes
+            else:
+                mode_used = "Instant Smart Preview (Local Fallback)"
+                generated_image_bytes = await asyncio.to_thread(
+                    _run_preview_mode,
+                    place_bytes,
+                    background_color,
+                    foreground_color,
+                    style,
+                    instructions,
+                    overlay_label,
+                )
+
+    else:
+        print("🎨 Invoking generative AI renderer for space transformation...")
+        ai_bytes = await asyncio.to_thread(_generate_ai_fallback_image, prompt)
+        if ai_bytes:
+            mode_used = "AI Generative Model (Instant Studio)"
+            generated_image_bytes = ai_bytes
+        else:
+            if use_local_env in ("true", "1", "yes") and not has_local:
+                mode_used = "Instant Smart Preview (PyTorch Not Installed)"
+            elif not has_colab:
+                mode_used = "Instant Smart Preview (Colab Not Connected)"
+            elif not colab_live:
+                mode_used = "Instant Smart Preview (Colab GPU Offline)"
+            else:
+                mode_used = "Instant Smart Preview"
+
             generated_image_bytes = await asyncio.to_thread(
                 _run_preview_mode,
                 place_bytes,
@@ -802,24 +920,8 @@ async def try_on(
                 foreground_color,
                 style,
                 instructions,
+                overlay_label,
             )
-
-    else:
-        if use_local_env in ("true", "1", "yes") and not has_local:
-            mode_used = "Instant Smart Preview (PyTorch Not Installed)"
-        elif not has_colab:
-            mode_used = "Instant Smart Preview (Colab Not Connected)"
-        else:
-            mode_used = "Instant Smart Preview"
-
-        generated_image_bytes = await asyncio.to_thread(
-            _run_preview_mode,
-            place_bytes,
-            background_color,
-            foreground_color,
-            style,
-            instructions,
-        )
 
     image_url = f"data:image/png;base64,{base64.b64encode(generated_image_bytes).decode('ascii')}"
     text_response = _generate_design_report(
@@ -830,6 +932,7 @@ async def try_on(
         foreground_color=foreground_color,
         instructions=instructions,
         mode_used=mode_used,
+        pref_data=pref_data,
     )
 
     return JSONResponse(
